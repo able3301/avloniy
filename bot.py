@@ -128,7 +128,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 # === Botni ishga tushirish ===
 def main():
-    app = ApplicationBuilder().token("YOUR_BOT_TOKEN").build()
+    app = ApplicationBuilder().token("7586148058:AAEa8tfucoM5fBaYXwUQNpmBflkkdgaFFcY").build()
 
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
