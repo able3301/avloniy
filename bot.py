@@ -91,17 +91,42 @@ async def age_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Qaysi kunlari qatnasha olasiz?", reply_markup=reply_markup)
     return DAY
 
-# Kun
-async def day_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    day = update.message.text
-    if day not in DAYS:
-        await update.message.reply_text("Faqat tugmadan tanlang.")
-        return DAY
-    context.user_data["day"] = day
-    time_buttons = [[KeyboardButton(time)] for time in TIMES]
-    reply_markup = ReplyKeyboardMarkup(time_buttons, resize_keyboard=True)
-    await update.message.reply_text("Qaysi soatlarda qatnasha olasiz?", reply_markup=reply_markup)
-    return TIME
+# Kunlar uchun klaviatura
+async def send_day_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    selected = context.user_data.get("days", [])
+    keyboard = []
+    for day in DAYS:
+        if day in selected:
+            keyboard.append([KeyboardButton(f"✅ {day}")])
+        else:
+            keyboard.append([KeyboardButton(day)])
+    keyboard.append([KeyboardButton("✅ Tayyor")])
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text("Qaysi kunlarda qatnasha olasiz? Bir nechta tanlang:", reply_markup=reply_markup)
+    return CONFIRM_DAY
+
+# Kun tanlash bosqichi
+async def day_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.replace("✅", "").strip()
+    if text == "Tayyor":
+        if not context.user_data["days"]:
+            await update.message.reply_text("Iltimos, kamida bitta kun tanlang.")
+            return await send_day_keyboard(update, context)
+        return await ask_time(update, context)
+    if text in DAYS:
+        selected = context.user_data["days"]
+        if text in selected:
+            selected.remove(text)
+        else:
+            if len(selected) < 7:
+                selected.append(text)
+            else:
+                await update.message.reply_text("Eng ko‘pi bilan 7 ta kun tanlashingiz mumkin.")
+        return await send_day_keyboard(update, context)
+    else:
+        await update.message.reply_text("Iltimos, menyudan tanlang.")
+        return await send_day_keyboard(update, context)
+
 
 # Vaqt
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
