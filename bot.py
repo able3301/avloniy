@@ -73,13 +73,25 @@ async def age_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return DAY
 
 async def day_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    day = update.message.text.strip().capitalize()
-    if day not in ALLOWED_DAYS:
-        await update.message.reply_text("Iltimos quyidagi kunlardan birini yozing:\n" + ", ".join(ALLOWED_DAYS))
+    input_days = update.message.text.strip().capitalize()
+    days_list = [d.strip().capitalize() for d in input_days.split(",") if d.strip()]
+    
+    if not days_list:
+        await update.message.reply_text("Iltimos, hech bo‘lmasa 1 ta kun kiriting.")
         return DAY
-    context.user_data["day"] = day
+
+    if any(day not in ALLOWED_DAYS for day in days_list):
+        await update.message.reply_text("Faqat quyidagi kunlardan foydalaning:\n" + ", ".join(ALLOWED_DAYS))
+        return DAY
+
+    if len(days_list) > 7:
+        await update.message.reply_text("Eng ko‘pi bilan 7 ta kun kiriting.")
+        return DAY
+
+    context.user_data["day"] = ", ".join(days_list)
     await update.message.reply_text("Qaysi soatlarda qatnasha olasiz? (Masalan: 14:00 - 16:00)")
     return TIME
+
 
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_text = update.message.text.strip()
