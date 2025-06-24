@@ -46,9 +46,20 @@ def init_excel():
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     init_excel()
+    
+    welcome_text = (
+        "👋 *Assalomu alaykum!*\n\n"
+        "Sizga _\"Abdulla Avloniy nomidagi Pedagogik Mahorat Milliy Instituti\"_ STEAM markazi tomonidan tashkil etilgan "
+        "*innovatsion kurslar* bo‘yicha ro‘yxatdan o‘tish uchun bir nechta savollar beriladi.\n\n"
+        "📌 *Bu markaz* zamonaviy laboratoriyalar, ilg‘or texnologiyalar va amaliy loyihalar asosida ta’lim beradi. "
+        "Har bir yo‘nalish o‘quvchilarning bilim olishiga, *ixtirochilik salohiyatini* oshirishga qaratilgan.\n\n"
+        "🧭 *Iltimos, quyidagi yo‘nalishlardan birini tanlang:*"
+    )
+    
     keyboard = [[KeyboardButton(course)] for course in COURSES]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    await update.message.reply_text("Quyidagi kurslardan birini tanlang:", reply_markup=reply_markup)
+    
+    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
     return COURSE
 
 # Kurs tanlash
