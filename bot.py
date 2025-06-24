@@ -1,86 +1,136 @@
-import asyncio
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
-from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+import logging
+from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 import openpyxl
-from datetime import datetime
 import os
 
-TOKEN = os.getenv("BOT_TOKEN")
+# Loglar
+logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(storage=MemoryStorage())
+# Bosqichlar
+COURSE, PHONE, AGE, DAY, TIME = range(5)
 
-class Form(StatesGroup):
-    waiting_for_contact = State()
-    waiting_for_age = State()
-    waiting_for_days = State()
-    waiting_for_time = State()
+# Excel fayl
+FILE_NAME = "users_data.xlsx"
 
-@dp.message(commands=['start'])
-async def cmd_start(message: types.Message, state: FSMContext):
-    keyboard = [
-        [KeyboardButton(text="📍 START POINT"), KeyboardButton(text="🤖 ROBOTICS")],
-        [KeyboardButton(text="🧪 SCIENCE LAB"), KeyboardButton(text="✈️ FLIGHT ACADEMY")],
-        [KeyboardButton(text="🔧 ENGINEERING LAB"), KeyboardButton(text="💻 CODING ROOM")],
-        [KeyboardButton(text="🕶️ VR ROOM"), KeyboardButton(text="🤖 VEX V5- IQ ROOM")],
-        [KeyboardButton(text="🚀 CHALLENGE LAB")]
-    ]
-    reply_markup = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-    await message.answer("Quyidagi kurslardan birini tanlang:", reply_markup=reply_markup)
+# Kurslar va ikonlar
+COURSES = [
+    "🟢 START POINT", "🤖 ROBOTICS", "⚙️ CHALLENGE LAB",
+    "✈️ FLIGHT ACADEMY", "🧪 SCINECE LAB", "🏗️ ENGINEERING LAB",
+    "💻 CODING ROOM", "🎮 VR ROOM", "🔧 VEX V5- IQ ROOM"
+]
 
-@dp.message(lambda msg: msg.text.startswith("📍") or msg.text.startswith("🤖") or msg.text.startswith("🧪"))
-async def course_chosen(message: types.Message, state: FSMContext):
-    await state.update_data(course=message.text)
-    contact_btn = KeyboardButton("Kontaktni yuborish", request_contact=True)
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[contact_btn]])
-    await message.answer("Iltimos, kontakt raqamingizni yuboring:", reply_markup=markup)
-    await state.set_state(Form.waiting_for_contact)
-
-@dp.message(Form.waiting_for_contact, content_types=types.ContentType.CONTACT)
-async def process_contact(message: types.Message, state: FSMContext):
-    await state.update_data(phone=message.contact.phone_number)
-    await message.answer("Yoshingizni kiriting:")
-    await state.set_state(Form.waiting_for_age)
-
-@dp.message(Form.waiting_for_age)
-async def process_age(message: types.Message, state: FSMContext):
-    await state.update_data(age=message.text)
-    await message.answer("Hafta kunlaridan sizga qulaylarini kiriting (masalan: Dushanba, Payshanba):")
-    await state.set_state(Form.waiting_for_days)
-
-@dp.message(Form.waiting_for_days)
-async def process_days(message: types.Message, state: FSMContext):
-    await state.update_data(days=message.text)
-    await message.answer("Sizga qulay vaqtni kiriting (masalan: 14:00 - 15:00):")
-    await state.set_state(Form.waiting_for_time)
-
-@dp.message(Form.waiting_for_time)
-async def process_time(message: types.Message, state: FSMContext):
-    data = await state.update_data(time=message.text)
-    user_data = await state.get_data()
-    save_to_excel(user_data)
-    await message.answer("Ma'lumotlaringiz qabul qilindi! ✅", reply_markup=types.ReplyKeyboardRemove())
-    await state.clear()
-
-def save_to_excel(data):
-    filename = "users.xlsx"
-    if not os.path.exists(filename):
+# Excel tayyorlash
+def init_excel():
+    if not os.path.exists(FILE_NAME):
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.append(["Sana", "Kurs", "Telefon", "Yosh", "Kunlar", "Vaqt"])
+        ws.append(["Ism", "Telefon", "Yosh", "Kurs", "Kun", "Vaqt"])
+        wb.save(FILE_NAME)
+
+# Boshlash
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    init_excel()
+    keyboard = [[KeyboardButton(course)] for course in COURSES]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text("Quyidagi kurslardan birini tanlang:", reply_markup=reply_markup)
+    return COURSE
+
+# Kurs tanlandi
+async def course_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if text not in COURSES:
+        await update.message.reply_text("Iltimos, menyudan kursni tanlang.")
+        return COURSE
+    context.user_data["course"] = text
+    # Telefonni so‘rash
+    contact_button = KeyboardButton("📞 Telefon raqamni yuborish", request_contact=True)
+    reply_markup = ReplyKeyboardMarkup([[contact_button]], resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("Iltimos, telefon raqamingizni yuboring:", reply_markup=reply_markup)
+    return PHONE
+
+# Telefon qabul qilindi
+async def phone_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    contact = update.message.contact
+    if not contact:
+        await update.message.reply_text("Faqat kontakt tugmasidan foydalaning.")
+        return PHONE
+    context.user_data["phone"] = contact.phone_number
+    context.user_data["name"] = update.effective_user.full_name
+    await update.message.reply_text("Yoshingizni kiriting:", reply_markup=ReplyKeyboardRemove())
+    return AGE
+
+# Yosh qabul qilindi
+async def age_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    age = update.message.text
+    if not age.isdigit():
+        await update.message.reply_text("Faqat raqam kiriting. Iltimos, yoshingizni qaytadan kiriting:")
+        return AGE
+    context.user_data["age"] = age
+    await update.message.reply_text("Qaysi kunlari qatnasha olasiz? (Dushanba, Seshanba, ...)")
+    return DAY
+
+# Kun qabul qilindi
+async def day_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["day"] = update.message.text
+    await update.message.reply_text("Qaysi soatlarda qatnasha olasiz? (Masalan: 14:00 - 16:00)")
+    return TIME
+
+# Soat qabul qilindi va yoziladi
+async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["time"] = update.message.text
+    # Excelga yozish
+    wb = openpyxl.load_workbook(FILE_NAME)
+    ws = wb.active
+    ws.append([
+        context.user_data["name"],
+        context.user_data["phone"],
+        context.user_data["age"],
+        context.user_data["course"],
+        context.user_data["day"],
+        context.user_data["time"]
+    ])
+    wb.save(FILE_NAME)
+    await update.message.reply_text("Malumotlar saqlandi. Rahmat!", reply_markup=ReplyKeyboardRemove())
+    return ConversationHandler.END
+
+# Bekor qilish
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+    return ConversationHandler.END
+
+# Admin uchun Excel fayl yuborish
+async def export(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if str(user_id) == "1350513135":  # ADMIN_ID ni o'zingiz almashtiring
+        await update.message.reply_document(open(FILE_NAME, "rb"))
     else:
-        wb = openpyxl.load_workbook(filename)
-        ws = wb.active
+        await update.message.reply_text("Siz admin emassiz!")
 
-    ws.append([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), data["course"], data["phone"], data["age"], data["days"], data["time"]])
-    wb.save(filename)
+# Xatolarni ushlash
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    print(f"Xato: {context.error}")
 
-async def main():
-    await dp.start_polling(bot)
+# Botni ishga tushurish
+def main():
+    app = ApplicationBuilder().token("7586148058:AAEa8tfucoM5fBaYXwUQNpmBflkkdgaFFcY").build()
+
+    conv = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            COURSE: [MessageHandler(filters.TEXT & ~filters.COMMAND, course_chosen)],
+            PHONE: [MessageHandler(filters.CONTACT, phone_received)],
+            AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, age_received)],
+            DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, day_received)],
+            TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
+
+    app.add_handler(conv)
+    app.add_handler(CommandHandler("export", export))
+    app.add_error_handler(error_handler)
+    app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
