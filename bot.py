@@ -1,6 +1,9 @@
 import logging
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, filters,
+    ContextTypes, ConversationHandler
+)
 import openpyxl
 import os
 
@@ -10,17 +13,20 @@ logging.basicConfig(level=logging.INFO)
 # Bosqichlar
 COURSE, PHONE, AGE, DAY, TIME = range(5)
 
-# Excel fayl
+# Fayl nomi
 FILE_NAME = "users_data.xlsx"
 
-# Kurslar va ikonlar
+# Admin ID (raqam shaklida yoziladi)
+ADMIN_ID = 1350513135
+
+# Kurslar
 COURSES = [
     "🟢 START POINT", "🤖 ROBOTICS", "⚙️ CHALLENGE LAB",
     "✈️ FLIGHT ACADEMY", "🧪 SCINECE LAB", "🏗️ ENGINEERING LAB",
     "💻 CODING ROOM", "🎮 VR ROOM", "🔧 VEX V5- IQ ROOM"
 ]
 
-# Excel tayyorlash
+# Excel fayl tayyorlash
 def init_excel():
     if not os.path.exists(FILE_NAME):
         wb = openpyxl.Workbook()
@@ -28,7 +34,7 @@ def init_excel():
         ws.append(["Ism", "Telefon", "Yosh", "Kurs", "Kun", "Vaqt"])
         wb.save(FILE_NAME)
 
-# Boshlash
+# /start komandasi
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     init_excel()
     keyboard = [[KeyboardButton(course)] for course in COURSES]
@@ -43,13 +49,12 @@ async def course_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Iltimos, menyudan kursni tanlang.")
         return COURSE
     context.user_data["course"] = text
-    # Telefonni so‘rash
     contact_button = KeyboardButton("📞 Telefon raqamni yuborish", request_contact=True)
     reply_markup = ReplyKeyboardMarkup([[contact_button]], resize_keyboard=True, one_time_keyboard=True)
     await update.message.reply_text("Iltimos, telefon raqamingizni yuboring:", reply_markup=reply_markup)
     return PHONE
 
-# Telefon qabul qilindi
+# Telefon raqam qabul qilindi
 async def phone_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     contact = update.message.contact
     if not contact:
@@ -67,19 +72,18 @@ async def age_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Faqat raqam kiriting. Iltimos, yoshingizni qaytadan kiriting:")
         return AGE
     context.user_data["age"] = age
-    await update.message.reply_text("Qaysi kunlari qatnasha olasiz? (Dushanba, Seshanba, ...)")
+    await update.message.reply_text("Qaysi kunlari qatnasha olasiz?")
     return DAY
 
 # Kun qabul qilindi
 async def day_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["day"] = update.message.text
-    await update.message.reply_text("Qaysi soatlarda qatnasha olasiz? (Masalan: 14:00 - 16:00)")
+    await update.message.reply_text("Qaysi soatlarda qatnasha olasiz?")
     return TIME
 
-# Soat qabul qilindi va yoziladi
+# Soat qabul qilindi va Excelga yoziladi
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["time"] = update.message.text
-    # Excelga yozish
     wb = openpyxl.load_workbook(FILE_NAME)
     ws = wb.active
     ws.append([
@@ -91,19 +95,51 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["time"]
     ])
     wb.save(FILE_NAME)
-    await update.message.reply_text("Malumotlar saqlandi. Rahmat!", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("Ma'lumotlar saqlandi. Rahmat!", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-# Bekor qilish
+# /cancel komandasi
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Bekor qilindi.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-# Admin uchun Excel fayl yuborish
-async def export(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if str(user_id) == "1350513135":  # ADMIN_ID ni o'zingiz almashtiring
-        await update.message.reply_document(open(FILE_NAME, "rb"))
+# /export komandasi - faqat admin
+async def export_excel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id == ADMIN_ID:
+        if os.path.exists(FILE_NAME):
+            await update.message.reply_document(open(FILE_NAME, "rb"))
+        else:
+            await update.message.reply_text("Fayl mavjud emas.")
+    else:
+        await update.message.reply_text("Siz admin emassiz!")
+
+# /clear komandasi - Excelni tozalash
+async def clear_excel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id == ADMIN_ID:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Ism", "Telefon", "Yosh", "Kurs", "Kun", "Vaqt"])
+        wb.save(FILE_NAME)
+        await update.message.reply_text("Barcha ma’lumotlar tozalandi.")
+    else:
+        await update.message.reply_text("Siz admin emassiz!")
+
+# /users komandasi - ro'yxatni matn sifatida ko'rsatish
+async def show_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id == ADMIN_ID:
+        if not os.path.exists(FILE_NAME):
+            await update.message.reply_text("Fayl mavjud emas.")
+            return
+        wb = openpyxl.load_workbook(FILE_NAME)
+        ws = wb.active
+        rows = list(ws.iter_rows(min_row=2, values_only=True))
+        if not rows:
+            await update.message.reply_text("Hozircha foydalanuvchi yo‘q.")
+            return
+        message = "📋 Ro'yxatdan o'tgan foydalanuvchilar:\n\n"
+        for i, row in enumerate(rows, 1):
+            message += f"{i}. {row[0]} | {row[1]} | {row[2]} yosh | {row[3]} | {row[4]} | {row[5]}\n"
+        await update.message.reply_text(message)
     else:
         await update.message.reply_text("Siz admin emassiz!")
 
@@ -111,11 +147,11 @@ async def export(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     print(f"Xato: {context.error}")
 
-# Botni ishga tushurish
+# Asosiy funksiya
 def main():
-    app = ApplicationBuilder().token("7586148058:AAEa8tfucoM5fBaYXwUQNpmBflkkdgaFFcY").build()
+    app = ApplicationBuilder().token("YOUR_BOT_TOKEN").build()
 
-    conv = ConversationHandler(
+    conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
             COURSE: [MessageHandler(filters.TEXT & ~filters.COMMAND, course_chosen)],
@@ -127,8 +163,10 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    app.add_handler(conv)
-    app.add_handler(CommandHandler("export", export))
+    app.add_handler(conv_handler)
+    app.add_handler(CommandHandler("export", export_excel))
+    app.add_handler(CommandHandler("clear", clear_excel))
+    app.add_handler(CommandHandler("users", show_users))
     app.add_error_handler(error_handler)
     app.run_polling()
 
