@@ -149,7 +149,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 # Asosiy funksiya
 def main():
-    app = ApplicationBuilder().token("YOUR_BOT_TOKEN").build()
+    app = ApplicationBuilder().token("7586148058:AAEa8tfucoM5fBaYXwUQNpmBflkkdgaFFcY").build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
