@@ -26,7 +26,7 @@ COURSE, PHONE, AGE, DAY, TIME, CONFIRM_DAY = range(6)
 COURSES = [
     "🟢 START POINT", "🤖 ROBOTICS", "⚙️ CHALLENGE LAB",
     "✈️ FLIGHT ACADEMY", "🧪 SCINECE LAB", "🏗️ ENGINEERING LAB",
-    "💻 CODING ROOM", "🎮 VR ROOM", "🔧 VEX V5- IQ ROOM"
+    "💻 CODING ROOM", "🎮 VR ROOM", "🔧 VEX V5- IQ ROOM", "❌ Yopish"
 ]
 
 # Kunlar
@@ -65,14 +65,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Kurs tanlash
 async def course_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+    if text == "❌ Yopish":
+        await update.message.reply_text("✅ Ro‘yxatdan o‘tish yakunlandi. Botdan foydalanishingiz mumkin.")
+        return ConversationHandler.END
+
     if text not in COURSES:
         await update.message.reply_text("Iltimos, menyudan kursni tanlang.")
         return COURSE
+
     context.user_data["course"] = text
+    # Telefonni so‘rash
     contact_button = KeyboardButton("📞 Telefon raqamni yuborish", request_contact=True)
     reply_markup = ReplyKeyboardMarkup([[contact_button]], resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text("Telefon raqamingizni yuboring:", reply_markup=reply_markup)
+    await update.message.reply_text("📱 Iltimos, telefon raqamingizni yuboring:", reply_markup=reply_markup)
     return PHONE
+
 
 # Telefon qabul qilish
 async def phone_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -140,11 +147,9 @@ async def ask_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Soat qabul qilish va saqlash
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    time = update.message.text
-    if time not in TIMES:
-        await update.message.reply_text("Iltimos, soatlardan birini tanlang.")
-        return TIME
-    context.user_data["time"] = time
+    context.user_data["time"] = update.message.text
+
+    # Excelga yozish
     wb = openpyxl.load_workbook(FILE_NAME)
     ws = wb.active
     ws.append([
@@ -152,12 +157,21 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["phone"],
         context.user_data["age"],
         context.user_data["course"],
-        ", ".join(context.user_data["days"]),
+        context.user_data["day"],
         context.user_data["time"]
     ])
     wb.save(FILE_NAME)
-    await update.message.reply_text("Ma’lumotlar saqlandi. Rahmat!", reply_markup=ReplyKeyboardRemove())
-    return ConversationHandler.END
+
+    # Yana boshqa kurs tanlash yoki tugatish menyusi
+    keyboard = [[KeyboardButton(course)] for course in COURSES]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text(
+        "✅ Ma'lumotlar saqlandi. Agar boshqa kursga ham qatnashmoqchi bo‘lsangiz, tanlang.\n\nAgar ro‘yxatdan o‘tishni yakunlamoqchi bo‘lsangiz, '❌ Yopish' tugmasini bosing:",
+        reply_markup=reply_markup
+    )
+
+    return COURSE
+
 
 # Bekor qilish
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
