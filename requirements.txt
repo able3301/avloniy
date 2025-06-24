@@ -1,2 +1,2 @@
-aiogram==3.4.1
-openpyxl
+aiogram==3.3.0
+openpyxl==3.1.2
