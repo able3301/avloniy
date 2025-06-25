@@ -156,7 +156,7 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["time"]
     ])
     wb.save(FILE_NAME)
-    await update.message.reply_text("Ma’lumotlar saqlandi. Rahmat!", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("Ma’lumotlar saqlandi.Agar yana boshqa yo'nalishni tanlamoqchi bo'lsangiz /start yozuvi ustiga bosing!", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 # Bekor qilish
