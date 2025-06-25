@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 FILE_NAME = "users.xlsx"
 
 # Admin Telegram ID
-ADMIN_ID = 1350513135  # o'zingizning admin ID'ingizni kiriting
+ADMIN_ID = 1350513135  
 
 # Bosqichlar
 COURSE, PHONE, AGE, DAY, TIME, CONFIRM_DAY = range(6)
