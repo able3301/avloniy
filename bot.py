@@ -221,7 +221,7 @@ async def clear_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Botni ishga tushurish
 def main():
-    app = ApplicationBuilder().token("YOUR_BOT_TOKEN").build()
+    app = ApplicationBuilder().token("7586148058:AAEa8tfucoM5fBaYXwUQNpmBflkkdgaFFcY").build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
