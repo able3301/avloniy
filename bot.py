@@ -1,9 +1,10 @@
 import logging
 import os
 import openpyxl
+import asyncio
 from telegram import (
     Update, KeyboardButton, ReplyKeyboardMarkup,
-    ReplyKeyboardRemove, ReplyKeyboardMarkup
+    ReplyKeyboardRemove
 )
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
@@ -17,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 FILE_NAME = "users.xlsx"
 
 # Admin Telegram ID
-ADMIN_ID = 1350513135  
+ADMIN_ID = 1350513135
 
 # Bosqichlar
 COURSE, PHONE, AGE, DAY, TIME, CONFIRM_DAY = range(6)
@@ -35,7 +36,7 @@ DAYS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Ya
 # Soatlar
 TIMES = ["09:00-11:00", "11:00-13:00", "14:00-16:00", "16:00-18:00"]
 
-# Excel tayyorlash
+# Excel faylni tayyorlash
 def init_excel():
     if not os.path.exists(FILE_NAME):
         wb = openpyxl.Workbook()
@@ -43,10 +44,18 @@ def init_excel():
         ws.append(["Ism", "Telefon", "Yosh", "Kurs", "Kunlar", "Vaqt"])
         wb.save(FILE_NAME)
 
-# /start
+# Xabarlarni o'chirish funksiyasi
+async def delete_messages(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_ids: list, delay: int = 10):
+    await asyncio.sleep(delay)
+    for msg_id in message_ids:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except:
+            pass
+
+# /start komandasi
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     init_excel()
-    
     welcome_text = (
         "👋 *Assalomu alaykum!*\n\n"
         "Sizga _\"Abdulla Avloniy nomidagi Pedagogik Mahorat Milliy Instituti\"_ STEAM markazi tomonidan tashkil etilgan "
@@ -55,41 +64,48 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Har bir yo‘nalish o‘quvchilarning bilim olishiga, *ixtirochilik salohiyatini* oshirishga qaratilgan.\n\n"
         "🧭 *Iltimos, quyidagi yo‘nalishlardan birini tanlang:*"
     )
-    
+
     keyboard = [[KeyboardButton(course)] for course in COURSES]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    
-    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
+
+    user_msg = update.message.message_id
+    bot_msg = await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
+    await delete_messages(context, update.effective_chat.id, [user_msg, bot_msg.message_id], delay=10)
     return COURSE
 
 # Kurs tanlash
 async def course_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text not in COURSES:
-        await update.message.reply_text("Iltimos, menyudan kursni tanlang.")
+        msg = await update.message.reply_text("Iltimos, menyudan kursni tanlang.")
+        await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
         return COURSE
     context.user_data["course"] = text
     contact_button = KeyboardButton("📞 Telefon raqamni yuborish", request_contact=True)
     reply_markup = ReplyKeyboardMarkup([[contact_button]], resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text("Telefon raqamingizni yuboring:", reply_markup=reply_markup)
+    msg = await update.message.reply_text("Telefon raqamingizni yuboring:", reply_markup=reply_markup)
+    await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id], delay=10)
     return PHONE
 
-# Telefon qabul qilish
+# Telefon raqam qabul qilish
 async def phone_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     contact = update.message.contact
     if not contact:
-        await update.message.reply_text("Iltimos, telefon raqam tugmasidan foydalaning.")
+        msg = await update.message.reply_text("Iltimos, telefon raqam tugmasidan foydalaning.")
+        await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
         return PHONE
     context.user_data["phone"] = contact.phone_number
     context.user_data["name"] = update.effective_user.full_name
-    await update.message.reply_text("Yoshingizni kiriting:", reply_markup=ReplyKeyboardRemove())
+    msg = await update.message.reply_text("Yoshingizni kiriting:", reply_markup=ReplyKeyboardRemove())
+    await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
     return AGE
 
 # Yosh
 async def age_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     age = update.message.text
     if not age.isdigit():
-        await update.message.reply_text("Faqat raqam kiriting. Yoshingizni qayta kiriting:")
+        msg = await update.message.reply_text("Faqat raqam kiriting. Yoshingizni qayta kiriting:")
+        await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
         return AGE
     context.user_data["age"] = age
     context.user_data["days"] = []
@@ -100,21 +116,21 @@ async def send_day_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     selected = context.user_data.get("days", [])
     keyboard = []
     for day in DAYS:
-        if day in selected:
-            keyboard.append([KeyboardButton(f"✅ {day}")])
-        else:
-            keyboard.append([KeyboardButton(day)])
+        display = f"✅ {day}" if day in selected else day
+        keyboard.append([KeyboardButton(display)])
     keyboard.append([KeyboardButton("✅ Tayyor")])
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    await update.message.reply_text("Qaysi kunlarda qatnasha olasiz? Bir nechta tanlang:", reply_markup=reply_markup)
+    msg = await update.message.reply_text("Qaysi kunlarda qatnasha olasiz? Bir nechta tanlang:", reply_markup=reply_markup)
+    await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
     return CONFIRM_DAY
 
-# Kun tanlash bosqichi
+# Kun tanlash
 async def day_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.replace("✅", "").strip()
     if text == "Tayyor":
         if not context.user_data["days"]:
-            await update.message.reply_text("Iltimos, kamida bitta kun tanlang.")
+            msg = await update.message.reply_text("Iltimos, kamida bitta kun tanlang.")
+            await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
             return await send_day_keyboard(update, context)
         return await ask_time(update, context)
     if text in DAYS:
@@ -125,24 +141,28 @@ async def day_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if len(selected) < 7:
                 selected.append(text)
             else:
-                await update.message.reply_text("Eng ko‘pi bilan 7 ta kun tanlashingiz mumkin.")
+                msg = await update.message.reply_text("Eng ko‘pi bilan 7 ta kun tanlashingiz mumkin.")
+                await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
         return await send_day_keyboard(update, context)
     else:
-        await update.message.reply_text("Iltimos, menyudan tanlang.")
+        msg = await update.message.reply_text("Iltimos, menyudan tanlang.")
+        await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
         return await send_day_keyboard(update, context)
 
 # Soat tanlash
 async def ask_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[KeyboardButton(time)] for time in TIMES]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text("Qaysi soatlarda qatnasha olasiz?", reply_markup=reply_markup)
+    msg = await update.message.reply_text("Qaysi soatlarda qatnasha olasiz?", reply_markup=reply_markup)
+    await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
     return TIME
 
-# Soat qabul qilish va saqlash
+# Soat qabul qilish va ma'lumotlarni saqlash
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time = update.message.text
     if time not in TIMES:
-        await update.message.reply_text("Iltimos, soatlardan birini tanlang.")
+        msg = await update.message.reply_text("Iltimos, soatlardan birini tanlang.")
+        await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
         return TIME
     context.user_data["time"] = time
     wb = openpyxl.load_workbook(FILE_NAME)
@@ -156,25 +176,29 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["time"]
     ])
     wb.save(FILE_NAME)
-    await update.message.reply_text("Ma’lumotlar saqlandi.Agar yana boshqa yo'nalishni tanlamoqchi bo'lsangiz /start yozuvi ustiga bosing!", reply_markup=ReplyKeyboardRemove())
+    msg = await update.message.reply_text("Ma’lumotlar saqlandi. Agar yana boshqa yo'nalishni tanlamoqchi bo'lsangiz /start yozuvi ustiga bosing!", reply_markup=ReplyKeyboardRemove())
+    await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id], delay=10)
     return ConversationHandler.END
 
 # Bekor qilish
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+    msg = await update.message.reply_text("Bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+    await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id], delay=10)
     return ConversationHandler.END
 
-# Admin: Excel fayl jo'natish
+# Admin: Excel faylni yuborish
 async def export(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("Siz admin emassiz.")
+        msg = await update.message.reply_text("Siz admin emassiz.")
+        await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
         return
     await update.message.reply_document(open(FILE_NAME, "rb"))
 
-# Admin: Ro‘yxatni matn ko‘rinishda olish
+# Admin: Matn ko‘rinishida foydalanuvchilar
 async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("Siz admin emassiz.")
+        msg = await update.message.reply_text("Siz admin emassiz.")
+        await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
         return
     wb = openpyxl.load_workbook(FILE_NAME)
     ws = wb.active
@@ -186,7 +210,8 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Admin: Tozalash
 async def clear_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("Siz admin emassiz.")
+        msg = await update.message.reply_text("Siz admin emassiz.")
+        await delete_messages(context, update.effective_chat.id, [update.message.message_id, msg.message_id])
         return
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -196,7 +221,7 @@ async def clear_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Botni ishga tushurish
 def main():
-    app = ApplicationBuilder().token("7586148058:AAEa8tfucoM5fBaYXwUQNpmBflkkdgaFFcY").build()
+    app = ApplicationBuilder().token("YOUR_BOT_TOKEN").build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
