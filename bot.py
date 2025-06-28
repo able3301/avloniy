@@ -35,10 +35,13 @@ async def clean_previous_messages(update: Update, context: ContextTypes.DEFAULT_
     old_msg_ids = context.user_data.get("prev_messages", [])
     for msg_id in old_msg_ids:
         try:
-            await context.bot.delete_message(chat_id, msg_id)
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
         except:
             pass
-    context.user_data["prev_messages"] = [update.message.message_id]
+    new_ids = []
+    if update.message:
+        new_ids.append(update.message.message_id)
+    context.user_data["prev_messages"] = new_ids
 
 async def send_reply(update: Update, context: ContextTypes.DEFAULT_TYPE, text, reply_markup=None):
     msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
@@ -49,13 +52,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     init_excel()
     await clean_previous_messages(update, context)
     welcome = (
-    "👋 *Assalomu alaykum!*\n\n"
-    "Sizga _\"Abdulla Avloniy nomidagi Pedagogik Mahorat Milliy Instituti\"_ STEAM markazi tomonidan tashkil etilgan "
-    "*innovatsion kurslar* bo‘yicha ro‘yxatdan o‘tish uchun bir nechta savollar beriladi.\n\n"
-    "📌 *Bu markaz* zamonaviy laboratoriyalar, ilg‘or texnologiyalar va amaliy loyihalar asosida ta’lim beradi. "
-    "Har bir yo‘nalish o‘quvchilarning bilim olishiga, *ixtirochilik salohiyatini* oshirishga qaratilgan.\n\n"
-    "🧭 *Iltimos, quyidagi yo‘nalishlardan birini tanlang:*"
-)
+        "👋 *Assalomu alaykum!*\n\n"
+        "Sizga _\"Abdulla Avloniy nomidagi Pedagogik Mahorat Milliy Instituti\"_ STEAM markazi tomonidan tashkil etilgan "
+        "*innovatsion kurslar* bo‘yicha ro‘yxatdan o‘tish uchun bir nechta savollar beriladi.\n\n"
+        "📌 *Bu markaz* zamonaviy laboratoriyalar, ilg‘or texnologiyalar va amaliy loyihalar asosida ta’lim beradi. "
+        "Har bir yo‘nalish o‘quvchilarning bilim olishiga, *ixtirochilik salohiyatini* oshirishga qaratilgan.\n\n"
+        "🗭 *Iltimos, quyidagi yo‘nalishlardan birini tanlang:*"
+    )
     keyboard = [[KeyboardButton(course)] for course in COURSES]
     markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await send_reply(update, context, welcome, markup)
@@ -153,12 +156,14 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def export(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await clean_previous_messages(update, context)
     if update.effective_user.id != ADMIN_ID:
         await send_reply(update, context, "Siz admin emassiz.")
         return
     await update.message.reply_document(open(FILE_NAME, "rb"))
 
 async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await clean_previous_messages(update, context)
     if update.effective_user.id != ADMIN_ID:
         await send_reply(update, context, "Siz admin emassiz.")
         return
@@ -168,6 +173,7 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_reply(update, context, text or "Foydalanuvchilar yo'q.")
 
 async def clear_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await clean_previous_messages(update, context)
     if update.effective_user.id != ADMIN_ID:
         await send_reply(update, context, "Siz admin emassiz.")
         return
@@ -176,6 +182,10 @@ async def clear_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ws.append(["Ism", "Telefon", "Yosh", "Kurs", "Kunlar", "Vaqt"])
     wb.save(FILE_NAME)
     await send_reply(update, context, "Ma'lumotlar o'chirildi.")
+
+async def unknown_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await clean_previous_messages(update, context)
+    await send_reply(update, context, "Iltimos, /start buyrug'idan foydalaning.")
 
 def main():
     app = ApplicationBuilder().token("7586148058:AAEa8tfucoM5fBaYXwUQNpmBflkkdgaFFcY").build()
@@ -196,6 +206,8 @@ def main():
     app.add_handler(CommandHandler("file", export))
     app.add_handler(CommandHandler("list", list_users))
     app.add_handler(CommandHandler("clear", clear_data))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_handler))
+
     app.run_polling()
 
 if __name__ == "__main__":
