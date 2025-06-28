@@ -23,8 +23,6 @@ COURSES = [
 DAYS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
 TIMES = ["09:00-11:00", "11:00-13:00", "14:00-16:00", "16:00-18:00"]
 
-WELCOME_MESSAGE_ID = "welcome_message_id"
-
 def init_excel():
     if not os.path.exists(FILE_NAME):
         wb = openpyxl.Workbook()
@@ -37,8 +35,7 @@ async def clean_previous_messages(update: Update, context: ContextTypes.DEFAULT_
     old_msg_ids = context.user_data.get("prev_messages", [])
     for msg_id in old_msg_ids:
         try:
-            if msg_id != context.user_data.get(WELCOME_MESSAGE_ID):
-                await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
         except:
             pass
     new_ids = []
@@ -48,7 +45,7 @@ async def clean_previous_messages(update: Update, context: ContextTypes.DEFAULT_
 
 async def send_reply(update: Update, context: ContextTypes.DEFAULT_TYPE, text, reply_markup=None):
     msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-    context.user_data.setdefault("prev_messages", []).append(msg.message_id)
+    context.user_data["prev_messages"].append(msg.message_id)
     return msg
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -64,9 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     keyboard = [[KeyboardButton(course)] for course in COURSES]
     markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    msg = await update.message.reply_text(welcome, parse_mode="Markdown", reply_markup=markup)
-    context.user_data.setdefault("prev_messages", []).append(msg.message_id)
-    context.user_data[WELCOME_MESSAGE_ID] = msg.message_id
+    await send_reply(update, context, welcome, markup)
     return COURSE
 
 async def course_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,20 +71,22 @@ async def course_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_reply(update, context, "Iltimos, menyudan kursni tanlang.")
         return COURSE
     context.user_data["course"] = text
-    await send_reply(update, context, "Telefon raqamingizni yozing (masalan: +998901234567):", ReplyKeyboardRemove())
+    btn = KeyboardButton("📞 Telefon raqamni yuborish", request_contact=True)
+    markup = ReplyKeyboardMarkup([[btn]], resize_keyboard=True, one_time_keyboard=True)
+    await send_reply(update, context, "Telefon raqamingizni yuboring:", markup)
     return PHONE
 
 async def phone_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await clean_previous_messages(update, context)
-    phone = update.message.text
-    if not phone.startswith('+') or not phone[1:].isdigit():
-        await send_reply(update, context, "Telefon raqam formati xato. Qayta kiriting (masalan: +998901234567):")
+    contact = update.message.contact
+    if not contact:
+        await send_reply(update, context, "Iltimos, tugmadan foydalaning.")
         return PHONE
     context.user_data.update({
-        "phone": phone,
+        "phone": contact.phone_number,
         "name": update.effective_user.full_name
     })
-    await send_reply(update, context, "Yoshingizni kiriting:")
+    await send_reply(update, context, "Yoshingizni kiriting:", ReplyKeyboardRemove())
     return AGE
 
 async def age_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,7 +125,7 @@ async def day_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ask_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await clean_previous_messages(update, context)
     keyboard = [[KeyboardButton(t)] for t in TIMES]
-    markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
     await send_reply(update, context, "Qaysi soatlarda qatnasha olasiz?", markup)
     return TIME
 
@@ -197,7 +194,7 @@ def main():
         entry_points=[CommandHandler("start", start)],
         states={
             COURSE: [MessageHandler(filters.TEXT & ~filters.COMMAND, course_chosen)],
-            PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone_received)],
+            PHONE: [MessageHandler(filters.CONTACT, phone_received)],
             AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, age_received)],
             CONFIRM_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, day_selection)],
             TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
