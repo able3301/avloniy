@@ -49,15 +49,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     init_excel()
     await clean_previous_messages(update, context)
     welcome = (
-        "👋 *Assalomu alaykum!*
-
-"
-        "Sizga _\"Abdulla Avloniy nomidagi Pedagogik Mahorat Milliy Instituti\"_ STEAM markazi tomonidan tashkil etilgan "
-        "*innovatsion kurslar* bo‘yicha ro‘yxatdan o‘tish uchun bir nechta savollar beriladi.\n\n"
-        "📌 *Bu markaz* zamonaviy laboratoriyalar, ilg‘or texnologiyalar va amaliy loyihalar asosida ta’lim beradi. "
-        "Har bir yo‘nalish o‘quvchilarning bilim olishiga, *ixtirochilik salohiyatini* oshirishga qaratilgan.\n\n"
-        "🗭 *Iltimos, quyidagi yo‘nalishlardan birini tanlang:*"
-    )
+    "👋 *Assalomu alaykum!*\n\n"
+    "Sizga _\"Abdulla Avloniy nomidagi Pedagogik Mahorat Milliy Instituti\"_ STEAM markazi tomonidan tashkil etilgan "
+    "*innovatsion kurslar* bo‘yicha ro‘yxatdan o‘tish uchun bir nechta savollar beriladi.\n\n"
+    "📌 *Bu markaz* zamonaviy laboratoriyalar, ilg‘or texnologiyalar va amaliy loyihalar asosida ta’lim beradi. "
+    "Har bir yo‘nalish o‘quvchilarning bilim olishiga, *ixtirochilik salohiyatini* oshirishga qaratilgan.\n\n"
+    "🧭 *Iltimos, quyidagi yo‘nalishlardan birini tanlang:*"
+)
     keyboard = [[KeyboardButton(course)] for course in COURSES]
     markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await send_reply(update, context, welcome, markup)
